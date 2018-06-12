@@ -1,2 +1,2 @@
-# basic-orchestration
+# basic-orchestrator
 Basic Orchestration by Ansible
