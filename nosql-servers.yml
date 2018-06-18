@@ -1,0 +1,4 @@
+---
+- hosts: nosql-servers
+  roles:
+    - role: common

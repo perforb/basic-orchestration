@@ -1,0 +1,133 @@
+---
+- name: add yum repositories
+  become: True
+  yum: name={{ item }} state=present
+  with_items:
+    - https://centos7.iuscommunity.org/ius-release.rpm
+
+- name: upgrade all packages
+  become: True
+  yum: name=* state=latest
+
+- name: install basic packages
+  become: True
+  yum: name={{ item }} state=latest
+  with_items:
+    - "@Development tools"
+    - yum-utils
+    - ntp
+    - zsh
+    - git
+    - wget
+    - vim
+    - sysstat
+    - dstat
+    - tcpdump
+    - bind-utils
+    - whois
+    - strace
+    - tree
+    - lsof
+    - pigz
+    - htop
+    - smem
+    - python36u
+    - python36u-pip
+
+- name: set locale
+  become: True
+  command: localectl set-locale {{ base_locale | default('LANG=en_US.UTF-8') }}
+
+- name: set time zone
+  become: True
+  command: timedatectl set-timezone {{ base_timezone | default('Asia/Tokyo') }}
+
+- name: start up ntpd
+  become: True
+  service: name=ntpd state=started enabled=yes
+
+- name: copy system files
+  become: True
+  copy: src={{ item.src }} dest={{ item.dest }} owner={{ item.owner }} group={{ item.group }}
+  with_items:
+    - src: roles/common/files/sysctl.conf
+      dest: /etc/sysctl.conf
+      owner: root
+      group: root
+    - src: roles/common/files/limits.conf
+      dest: /etc/security/limits.conf
+      owner: root
+      group: root
+
+- name: reload sysctl
+  become: True
+  command: sysctl -p
+
+- name: register selinux status
+  become: True
+  command: getenforce
+  register: selinux_status
+
+- name: disable selinux
+  become: True
+  command: setenforce 0
+  when: selinux_status.stdout != "Disabled"
+
+- name: replace parameters
+  become: True
+  replace: dest={{ item.dest }} regexp={{ item.regexp }} replace={{ item.replace }}
+  with_items:
+    - dest: /etc/selinux/config
+      regexp: "SELINUX *= *enforcing"
+      replace: "SELINUX=disabled"
+
+- name: replace sshd parameters
+  become: True
+  replace: dest={{ item.dest }} regexp={{ item.regexp }} replace={{ item.replace }}
+  with_items:
+    - dest: /etc/ssh/sshd_config
+      regexp: "#*PermitRootLogin *yes"
+      replace: "PermitRootLogin no"
+    - dest: /etc/ssh/sshd_config
+      regexp: "#*PasswordAuthentication *yes"
+      replace: "PasswordAuthentication no"
+  notify: restart sshd
+
+- name: install pip
+  become: True
+  command: sh -c "curl -kl https://bootstrap.pypa.io/get-pip.py | python"
+  args:
+    creates: /bin/pip
+
+- name: install pip modules
+  become: True
+  pip: name="percol"
+
+- name: copy files and directories
+  become: True
+  copy: src={{ item.src }} dest={{ item.dest }} owner={{ item.owner }} group={{ item.group }}
+  with_items:
+    - src: roles/common/files/.zshrc
+      dest: /root/.zshrc
+      owner: root
+      group: root
+    - src: roles/common/files/.vimrc
+      dest: /root/.vimrc
+      owner: root
+      group: root
+    - src: roles/common/files/.percol.d
+      dest: /root/
+      owner: root
+      group: root
+    - src: roles/common/files/.zshrc
+      dest: /home/{{ ansible_user }}/.zshrc
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+    - src: roles/common/files/.vimrc
+      dest: /home/{{ ansible_user }}/.vimrc
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"
+    - src: roles/common/files/.percol.d
+      dest: /home/{{ ansible_user }}/
+      owner: "{{ ansible_user }}"
+      group: "{{ ansible_user }}"

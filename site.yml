@@ -1,0 +1,4 @@
+---
+- include: web-servers.yml
+- include: db-servers.yml
+- include: nosql-servers.yml
